@@ -3,18 +3,9 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 import time
 import pandas as pd
-import csv
-import random
-import difflib
 from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import InvalidSelectorException
 from fuzzywuzzy import process
-
-
-def similarity(s1, s2):
-    normalized1 = s1.lower()
-    normalized2 = s2.lower()
-    matcher = difflib.SequenceMatcher(None, normalized1, normalized2)
-    return matcher.ratio()
 
 def similarity_2(list, string):
     best_match, confidence = process.extractOne(string, list)
@@ -28,9 +19,9 @@ driver = webdriver.Chrome(options=options)
 data = {'company': [], 'title': [], 'zps': [], 'link': [], 'reqs': []}
 key_words = ['требования', 'идеальный кандидат', 'для нас важно что', 'Что нужно, чтобы к нам '
                                                                                 'присоединиться',
-        'Для этой работы нам нужен именно такой как ты', 'Что мы ценим', 'Что мы ждем', 'Нам нужен коллега с', 'Необходимые навыки и умения']
+        'Для этой работы нам нужен именно такой как ты', 'Что мы ценим', 'Что мы ждем', 'Нам нужен коллега с', 'Необходимые навыки и умения', 'Ожидаем']
 
-for i in range(2):
+for i in range(1):
     driver.get(
         f'https://hh.ru/search/vacancy?area=1&search_field=name&search_field=company_name&search_field=description&enable_snippets=false&only_with_salary=true&text=%D0%BF%D1%80%D0%BE%D0%B4%D1%83%D0%BA%D1%82%D0%BE%D0%B2%D1%8B%D0%B9+%D0%B0%D0%BD%D0%B0%D0%BB%D0%B8%D1%82%D0%B8%D0%BA&page={i}')
     print('Site has loaded')
@@ -59,23 +50,30 @@ for key in data:
     print(len(data[key]))
 
 for i, link in enumerate(data['link']):
+    print(f'{i}. Ссылка: {data["link"][i]}')
     flag = False
     driver.get(link)
     time.sleep(4)
     strongs = driver.find_elements(By.TAG_NAME, 'strong')
     for strong in strongs:
-        for key_word in key_words:
-            if similarity_2(strong.text, key_word) > 0.5 and not flag:
-                try:
-                    flag = True
-                    req_xpath = f'//strong/span[text()="{strong.text}"]//..//..//following-sibling::ul'
-                    data['reqs'].append(driver.find_element(By.XPATH, req_xpath).text.replace('\n', '// '))
-                except NoSuchElementException:
-                    flag = True
-                    data['reqs'].append(None)
+        if similarity_2(key_words, strong.text) > 69 and not flag:
+            try:
+                flag = True
+                req_xpath = f'//strong/span[text()="{strong.text}"]//..//..//following-sibling::ul'
+                data['reqs'].append(driver.find_element(By.XPATH, req_xpath).text.replace('\n', '// '))
+            except NoSuchElementException:
+                flag = True
+                data['reqs'].append(None)
+                print(f'Причина: Не найден абзац с названием {strong.text}')
+            except SyntaxError:
+                flag = True
+                data['reqs'].append(None)
+                print(f'Этот сайт поебень')
     if not flag:
         data['reqs'].append(None)
-    print(i, data['reqs'][i])
+        print('Причина: Не найдено подходящее название для абзаца')
+    print(data['reqs'][i])
+
 
 print(len(data['reqs']))
 
@@ -83,9 +81,6 @@ with open('data.csv', 'w') as f:  # You will need 'wb' mode in Python 2.x
     df = pd.DataFrame.from_dict(data=data)
     print(df)
     df.to_csv(f)
-
-
-
 
 
 driver.quit()
